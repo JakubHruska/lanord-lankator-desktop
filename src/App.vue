@@ -1,34 +1,44 @@
 <script setup>
-import {ref, computed} from "vue";
-import {useRoute} from "vue-router";
+import {ref} from "vue";
+import {useRouter, useRoute} from 'vue-router';
 import Tabs from "primevue/tabs";
 import TabList from "primevue/tablist";
 import Tab from "primevue/tab";
 
+const router = useRouter();
 const route = useRoute();
 
+const onTabChange = (newPath) => {
+  router.push(newPath);
+};
+
 const items = ref([
-  {route: "/store", label: "Obchod", icon: "pi pi-shopping-cart"},
+  {route: "/store", label: "Balíčky", icon: "pi pi-shopping-cart"},
   {route: "/library", label: "Knihovna", icon: "pi pi-book"},
+  {route: "/settings", label: "Nastavení", icon: "pi pi-cog"},
 ]);
 
-const activeRoute = computed(() => route.path);
 </script>
 
 <template>
-  <Tabs :value="activeRoute">
-    <TabList>
-      <Tab v-for="item in items" :key="item.route" :value="item.route">
-        <router-link v-slot="{ href, navigate }" :to="item.route" custom>
-          <a :href="href" @click="navigate" class="tab-link">
-            <i :class="item.icon"/>
-            <span>{{ item.label }}</span>
-          </a>
-        </router-link>
-      </Tab>
-    </TabList>
-  </Tabs>
-  <RouterView/>
+  <div>
+    <div class="sticky top-0 z-5">
+      <Tabs :value="route.path" @update:value="onTabChange">
+        <TabList>
+          <Tab v-for="item in items" :key="item.route" :value="item.route">
+            <div class="flex items-center gap-2">
+              <i :class="item.icon"/>
+              <span>{{ item.label }}</span>
+            </div>
+          </Tab>
+        </TabList>
+      </Tabs>
+    </div>
+
+    <div class="px-4 py-2">
+      <RouterView/>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -45,7 +55,7 @@ const activeRoute = computed(() => route.path);
 html, body {
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  //scrollbar-gutter: stable; /* reservuje místo pro scrollbar vždy, aby layout neskákal */
+  //overflow-y: auto;
+  scrollbar-gutter: stable; /* reservuje místo pro scrollbar vždy, aby layout neskákal */
 }
 </style>

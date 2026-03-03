@@ -1,73 +1,142 @@
 <script setup>
+import {ref, onMounted, onUnmounted} from "vue";
+import api from "@/api/axios.js";
+import {settings} from "@/stores/settings.js";
+
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import ProgressSpinner from 'primevue/progressspinner';
+import Message from "primevue/message";
+import Tooltip from 'primevue/tooltip';
+
+/** @type {import('vue').Ref<import('@/types').Package[]>} */
+const packages = ref([]);
+const loading = ref(true);
+let refreshInterval = null;
+
+// Počítání velikosti souboru
+const formatSize = (bytes) => {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const fetchPackages = async () => {
+  const loadingTimeout = setTimeout(() => {
+    loading.value = true;
+  }, 200);
+  try {
+    // V axios.js bys měl ideálně baseURL brát ze settings.value.serverUrl
+    const response = await api.get('/packages/');
+    packages.value = response.data;
+  } catch (error) {
+    console.error('Chyba při načítání:', error);
+  } finally {
+    clearTimeout(loadingTimeout);
+    loading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchPackages();
+
+  // Nastavení automatického refreshování každých 60 vteřin
+  refreshInterval = setInterval(() => {
+    if (settings.value.autoRefresh) {
+      console.log('Automatické obnovování seznamu...');
+      fetchPackages();
+    }
+  }, 60000);
+});
+
+onUnmounted(() => {
+  // Důležité: zastavit interval, když uživatel odejde z karty, ať se nevrství
+  if (refreshInterval) clearInterval(refreshInterval);
+});
+
+const startDownload = (pkg) => {
+  console.log('Stahuji:', pkg.title);
+  window.open(pkg.archive_file, '_blank');
+};
 </script>
 
 <template>
-  <div class="view-container">
-    <h1>Obchod</h1>
-    <div class="card-grid">
-      <div class="card" v-for="i in 6" :key="i">
-        <div class="card-image" />
-        <div class="card-body">
-          <h3>Hra {{ i }}</h3>
-          <p>Popis hry {{ i }}. Lorem ipsum dolor sit amet.</p>
-          <button class="buy-btn">Koupit — {{ i * 100 }} Kč</button>
-        </div>
+  <div class="py-0 px-4">
+    <Message v-if="!settings.installPath" severity="warn" class="mb-4">
+      Pozor: V nastavení nemáte vybranou složku pro stahování her.
+    </Message>
+
+    <div class="flex justify-content-between align-items-center mb-4">
+      <h1 class="m-0">Dostupné balíčky</h1>
+      <div class="flex items-center gap-2">
+        <Tag :value="`${packages.length} dostupných`" severity="info"/>
+        <Button icon="pi pi-refresh" :loading="loading" @click="fetchPackages" label="Obnovit" outlined
+                severity="secondary"/>
       </div>
+    </div>
+
+    <div v-if="loading" class="flex justify-content-center align-items-center" style="height: 50vh">
+      <ProgressSpinner/>
+    </div>
+
+    <div v-else class="grid">
+      <div v-for="pkg in packages" :key="pkg.id" class="col-12 md:col-6 lg:col-4 xl:col-3">
+        <Card class="h-full flex flex-column overflow-hidden shadow-2 hover:shadow-5 transition-duration-200">
+          <template #header>
+            <div class="bg-cyan-500 flex align-items-center justify-content-center" style="height: 150px">
+              <i class="pi pi-box text-6xl text-primary-900 opacity-90"></i>
+            </div>
+          </template>
+
+          <template #title>
+            <div class="flex justify-content-between align-items-start">
+              <span>{{ pkg.title }}</span>
+              <Tag :value="pkg.version" severity="secondary"/>
+            </div>
+          </template>
+
+          <template #content>
+            <p class="m-0 text-secondary line-height-3 h-4rem overflow-hidden text-overflow-ellipsis">
+              {{ pkg.description || 'Žádný popis k dispozici.' }}
+            </p>
+            <div class="mt-3 flex align-items-center gap-2 text-sm text-500">
+              <i class="pi pi-database"></i>
+              <span>{{ formatSize(pkg.file_size) }}</span>
+            </div>
+          </template>
+
+          <template #footer>
+            <div class="flex gap-2 mt-1">
+              <Button
+                  label="Stáhnout"
+                  icon="pi pi-download"
+                  class="flex-grow-1"
+                  :disabled="!settings.installPath"
+                  v-tooltip.top="!settings.installPath ? 'Nejprve nastavte složku pro stahování v nastavení' : ''"
+                  @click="startDownload(pkg)"
+              />
+              <Button
+                  icon="pi pi-info-circle"
+                  outlined
+                  severity="secondary"
+              />
+            </div>
+          </template>
+        </Card>
+      </div>
+    </div>
+
+    <div v-if="!loading && packages.length === 0" class="text-center p-8">
+      <i class="pi pi-search text-6xl text-400 mb-4"></i>
+      <p class="text-xl text-500">Žádné balíčky nebyly nalezeny.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.view-container {
-  padding: 2rem;
-}
+/* PrimeFlex řeší většinu věcí, ale drobné úpravy můžeme nechat zde */
 
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-.card-image {
-  width: 100%;
-  height: 130px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-}
-
-.card-body {
-  padding: 1rem;
-}
-
-.card-body h3 {
-  margin: 0 0 0.5rem;
-}
-
-.card-body p {
-  font-size: 0.875rem;
-  color: #555;
-  margin: 0 0 1rem;
-}
-
-.buy-btn {
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.4rem 1rem;
-  cursor: pointer;
-  width: 100%;
-}
-
-.buy-btn:hover {
-  background: #5a6fd6;
-}
 </style>

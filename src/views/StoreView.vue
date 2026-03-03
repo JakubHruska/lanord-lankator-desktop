@@ -8,7 +8,6 @@ import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import ProgressSpinner from 'primevue/progressspinner';
 import Message from "primevue/message";
-import Tooltip from 'primevue/tooltip';
 
 /** @type {import('vue').Ref<import('@/types').Package[]>} */
 const packages = ref([]);
@@ -65,7 +64,7 @@ const startDownload = (pkg) => {
 
 <template>
   <div class="py-0 px-4">
-    <Message v-if="!settings.installPath" severity="warn" class="mb-4">
+    <Message v-if="!settings.downloadPath" severity="warn" class="mb-4">
       Pozor: V nastavení nemáte vybranou složku pro stahování her.
     </Message>
 
@@ -114,8 +113,8 @@ const startDownload = (pkg) => {
                   label="Stáhnout"
                   icon="pi pi-download"
                   class="flex-grow-1"
-                  :disabled="!settings.installPath"
-                  v-tooltip.top="!settings.installPath ? 'Nejprve nastavte složku pro stahování v nastavení' : ''"
+                  :disabled="!settings.downloadPath"
+                  v-tooltip.top="!settings.downloadPath ? 'Nejprve nastavte složku pro stahování v nastavení' : ''"
                   @click="startDownload(pkg)"
               />
               <Button

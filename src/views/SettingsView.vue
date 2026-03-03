@@ -13,7 +13,7 @@ const selectDirectory = async () => {
   });
 
   if (selected) {
-    settings.value.installPath = selected;
+    settings.value.downloadPath = selected;
   }
 };
 </script>
@@ -30,10 +30,10 @@ const selectDirectory = async () => {
     <div class="flex flex-column gap-2">
       <label class="font-bold">Cílová složka pro stahování</label>
       <div class="flex gap-2">
-        <InputText v-model="settings.installPath" readonly class="flex-grow-1" placeholder="Není vybráno" />
+        <InputText v-model="settings.downloadPath" readonly class="flex-grow-1" placeholder="Není vybráno" />
         <Button icon="pi pi-folder-open" @click="selectDirectory" />
       </div>
-      <Message v-if="!settings.installPath" severity="error" :closable="false">
+      <Message v-if="!settings.downloadPath" severity="error" :closable="false">
         Bez vybraného adresáře nebude možné stahovat balíčky!
       </Message>
     </div>

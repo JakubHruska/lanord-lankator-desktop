@@ -4,6 +4,8 @@ import {useRouter, useRoute} from 'vue-router';
 import Tabs from "primevue/tabs";
 import TabList from "primevue/tablist";
 import Tab from "primevue/tab";
+import Toast from 'primevue/toast';
+
 
 const router = useRouter();
 const route = useRoute();
@@ -34,6 +36,8 @@ const items = ref([
         </TabList>
       </Tabs>
     </div>
+
+    <Toast class="pt-4" position="top-center" group="tc"/>
 
     <div class="px-4 py-2">
       <RouterView/>

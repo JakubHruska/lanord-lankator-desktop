@@ -2,17 +2,22 @@
 import {ref, onMounted, onUnmounted} from "vue";
 import api from "@/api/axios.js";
 import {settings} from "@/stores/settings.js";
+import {downloadPackage} from "@/services/downloadService.js";
 
 import Card from 'primevue/card';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import ProgressSpinner from 'primevue/progressspinner';
 import Message from "primevue/message";
+import {useToast} from "primevue";
 
 /** @type {import('vue').Ref<import('@/types').Package[]>} */
 const packages = ref([]);
 const loading = ref(true);
 let refreshInterval = null;
+
+const toast = useToast();
+const downloadingItems = ref(new Set()); // Sledujeme, co se zrovna stahuje
 
 // Počítání velikosti souboru
 const formatSize = (bytes) => {
@@ -59,6 +64,29 @@ onUnmounted(() => {
 const startDownload = (pkg) => {
   console.log('Stahuji:', pkg.title);
   window.open(pkg.archive_file, '_blank');
+};
+
+const handleDownload = async (pkg) => {
+  downloadingItems.value.add(pkg.id);
+  // console.log(`Stahování ${pkg.slug}  do:`, settings.value.downloadPath, ' ...');
+
+  try {
+    toast.add({
+      severity: 'info',
+      summary: 'Stahování',
+      detail: `Startuji stahování ${pkg.title}`,
+      group: 'tc',
+      life: 3000
+    });
+
+    const path = await downloadPackage(pkg);
+
+    toast.add({severity: 'success', summary: 'Hotovo', detail: `Uloženo do: ${path}`, group: 'tc', life: 5000});
+  } catch (error) {
+    toast.add({severity: 'error', summary: 'Chyba', detail: error.message, group: 'tc', life: 5000});
+  } finally {
+    downloadingItems.value.delete(pkg.id);
+  }
 };
 </script>
 
@@ -110,12 +138,12 @@ const startDownload = (pkg) => {
           <template #footer>
             <div class="flex gap-2 mt-1">
               <Button
-                  label="Stáhnout"
-                  icon="pi pi-download"
+                  :label="downloadingItems.has(pkg.id) ? 'Stahuji...' : 'Stáhnout'"
+                  :icon="downloadingItems.has(pkg.id) ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
                   class="flex-grow-1"
-                  :disabled="!settings.downloadPath"
+                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id)"
                   v-tooltip.top="!settings.downloadPath ? 'Nejprve nastavte složku pro stahování v nastavení' : ''"
-                  @click="startDownload(pkg)"
+                  @click="handleDownload(pkg)"
               />
               <Button
                   icon="pi pi-info-circle"

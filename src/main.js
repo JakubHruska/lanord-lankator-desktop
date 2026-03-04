@@ -5,6 +5,7 @@ import Aura from '@primeuix/themes/aura';
 import App from './App.vue';
 import router from "./router";
 import Tooltip from 'primevue/tooltip';
+import ToastService from 'primevue/toastservice';
 
 import 'primeicons/primeicons.css';
 import 'primeflex/primeflex.css';
@@ -22,5 +23,6 @@ app.use(PrimeVue, {
     ripple: false
 });
 app.directive('tooltip', Tooltip);
+app.use(ToastService);
 
 app.mount('#app');

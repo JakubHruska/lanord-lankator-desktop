@@ -810,6 +810,7 @@ dependencies = [
 name = "desktop_client"
 version = "0.1.0"
 dependencies = [
+ "log",
  "reqwest",
  "tauri",
  "tauri-build",

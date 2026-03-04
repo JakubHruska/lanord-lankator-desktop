@@ -10,6 +10,10 @@ import ToastService from 'primevue/toastservice';
 import 'primeicons/primeicons.css';
 import 'primeflex/primeflex.css';
 
+import { attachConsole } from '@tauri-apps/plugin-log';
+const detach = await attachConsole();
+// TODO: call detach() if you do not want to print logs to the console anymore
+
 const app = createApp(App);
 
 app.use(router)

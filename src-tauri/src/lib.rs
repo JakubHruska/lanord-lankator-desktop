@@ -104,16 +104,61 @@ async fn save_manifest(
         Err(e) => warn!("[save_manifest] Nelze serializovat přijatý manifest pro log: {}", e),
     }
 
-    // Pokus o konverzi na strongly-typed struct, s loggingem chyby
+    // Deserialize na typované data
     let manifest_data: ManifestData = serde_json::from_value(manifest).map_err(|e| {
         let msg = format!("Nepodařilo se deserialize manifestu: {}", e);
         error!("{}", msg);
         msg
     })?;
 
-    let game_dir = Path::new(&download_path).join(&slug);
-    let manifest_path = game_dir.join("manifest.json");
+    // 1) Validace slug - jen alfanumerické + ._- povoleno, žádné / \\ nebo ".."
+    if slug.trim().is_empty() {
+        return Err("Slug je prázdný".to_string());
+    }
+    if slug.contains('/') || slug.contains('\\') || slug.contains("..") {
+        return Err("Neplatný slug: obsahuje zakázané znaky".to_string());
+    }
+    for c in slug.chars() {
+        if !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+            return Err("Neplatný slug: povoleny pouze A-Z, a-z, 0-9, '-', '_' a '.'".to_string());
+        }
+    }
 
+    // 2) Zajisti, že základní cesta existuje a canonicalizuj ji
+    fs::create_dir_all(&download_path).map_err(|e| {
+        let msg = format!("Nepodařilo se vytvořit základní složku '{}': {}", download_path, e);
+        error!("{}", msg);
+        msg
+    })?;
+    let base_canon = fs::canonicalize(&download_path).map_err(|e| {
+        let msg = format!("Nepodařilo se canonicalizovat '{}': {}", download_path, e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    // 3) Složka pro hru musí být pod base_canon
+    let game_dir = base_canon.join(&slug);
+    if !game_dir.starts_with(&base_canon) {
+        let msg = format!("Neplatná cílová složka po spojení: '{}'", game_dir.display());
+        error!("{}", msg);
+        return Err(msg);
+    }
+
+    // Vytvoř cílovou složku
+    fs::create_dir_all(&game_dir).map_err(|e| {
+        let msg = format!("Nepodařilo se vytvořit složku '{}': {}", game_dir.display(), e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    // 4) Sanitize archive_file: použij jen basename (file_name)
+    let archive_basename = std::path::Path::new(&manifest_data.archive_file)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("archive.zip")
+        .to_string();
+
+    let manifest_path = game_dir.join("manifest.json");
     info!(
         "[save_manifest] Ukládám manifest pro '{}' do '{}'",
         slug,
@@ -126,22 +171,12 @@ async fn save_manifest(
         "title": manifest_data.title,
         "description": manifest_data.description,
         "file_size": manifest_data.file_size,
-        "archive_file": manifest_data.archive_file,
+        "archive_file": archive_basename,
         "created_at": manifest_data.created_at,
     });
 
     let content = serde_json::to_string_pretty(&json).map_err(|e| {
         let msg = format!("Nepodařilo se serializovat manifest: {}", e);
-        error!("{}", msg);
-        msg
-    })?;
-
-    fs::create_dir_all(&game_dir).map_err(|e| {
-        let msg = format!(
-            "Nepodařilo se vytvořit složku '{}': {}",
-            game_dir.display(),
-            e
-        );
         error!("{}", msg);
         msg
     })?;

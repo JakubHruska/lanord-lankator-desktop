@@ -5,12 +5,20 @@ export const downloadPackage = async (pkg) => {
     const downloadPath = settings.value.downloadPath;
     if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
 
-    // Volání Rust commandu - veškerá logika běží v Rustu
-    const filePath = await invoke('download_package', {
+    await invoke('download_package', {
         url: pkg.archive_file,
         downloadPath: downloadPath,
         slug: pkg.slug,
     });
-
-    return filePath;
 };
+
+export const extractPackage = async (pkg) => {
+    const downloadPath = settings.value.downloadPath;
+    if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
+
+    return await invoke('extract_package', {
+        downloadPath: downloadPath,
+        slug: pkg.slug,
+    });
+};
+

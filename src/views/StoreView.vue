@@ -2,7 +2,7 @@
 import {ref, onMounted, onUnmounted} from "vue";
 import api from "@/api/axios.js";
 import {settings} from "@/stores/settings.js";
-import {downloadPackage} from "@/services/downloadService.js";
+import {downloadPackage, extractPackage} from "@/services/downloadService.js";
 
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -68,20 +68,29 @@ const startDownload = (pkg) => {
 
 const handleDownload = async (pkg) => {
   downloadingItems.value.add(pkg.id);
-  // console.log(`Stahování ${pkg.slug}  do:`, settings.value.downloadPath, ' ...');
 
   try {
     toast.add({
       severity: 'info',
       summary: 'Stahování',
-      detail: `Startuji stahování ${pkg.title}`,
+      detail: `Stahuji ${pkg.title}...`,
       group: 'tc',
       life: 3000
     });
 
-    const path = await downloadPackage(pkg);
+    await downloadPackage(pkg);
 
-    toast.add({severity: 'success', summary: 'Hotovo', detail: `Uloženo do: ${path}`, group: 'tc', life: 5000});
+    toast.add({
+      severity: 'info',
+      summary: 'Rozbalování',
+      detail: `Staženo, rozbaluji ${pkg.title}...`,
+      group: 'tc',
+      life: 3000
+    });
+
+    const appDir = await extractPackage(pkg);
+
+    toast.add({severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000});
   } catch (error) {
     toast.add({severity: 'error', summary: 'Chyba', detail: error.message, group: 'tc', life: 5000});
   } finally {

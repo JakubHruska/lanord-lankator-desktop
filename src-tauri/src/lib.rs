@@ -1,9 +1,10 @@
 use log::{trace, debug, error, info, warn};
 use reqwest;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::Path;
+use walkdir::WalkDir;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -298,6 +299,204 @@ async fn extract_package(
     Ok(content_dir.to_string_lossy().to_string())
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct InstalledPackage {
+    slug: String,
+    #[serde(rename = "type")]
+    package_type: String,
+    title: String,
+    description: String,
+    file_size: u64,
+    archive_file: String,
+    created_at: Option<String>,
+    /// Absolutní cesta ke složce balíčku ({download_path}/{slug})
+    package_path: String,
+}
+
+#[tauri::command]
+async fn scan_library(download_path: String) -> Result<Vec<InstalledPackage>, String> {
+    info!("[scan_library] Skenuji složku: {}", download_path);
+
+    let base = Path::new(&download_path);
+    if !base.exists() {
+        warn!("[scan_library] Složka neexistuje: {}", download_path);
+        return Ok(vec![]);
+    }
+
+    let mut packages: Vec<InstalledPackage> = Vec::new();
+
+    // Hloubka 1 = přímé podsložky (úroveň 2 = soubory v nich)
+    for entry in WalkDir::new(base)
+        .min_depth(1)
+        .max_depth(2)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_name() != "manifest.json" {
+            continue;
+        }
+
+        let manifest_path = entry.path();
+        debug!("[scan_library] Nalezen manifest: {}", manifest_path.display());
+
+        let content = match fs::read_to_string(manifest_path) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(
+                    "[scan_library] Nelze přečíst manifest '{}': {}",
+                    manifest_path.display(),
+                    e
+                );
+                continue;
+            }
+        };
+
+        // Nejprve parse na ManifestData (manifest.json neobsahuje package_path)
+        let manifest: ManifestData = match serde_json::from_str(&content) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!(
+                    "[scan_library] Nepodařilo se parsovat manifest '{}': {}",
+                    manifest_path.display(),
+                    e
+                );
+                continue;
+            }
+        };
+
+        // Vytvoř InstalledPackage s doplněnou package_path
+        let pkg_dir = manifest_path
+            .parent()
+            .unwrap_or(base)
+            .to_string_lossy()
+            .to_string();
+
+        let installed = InstalledPackage {
+            slug: manifest.slug,
+            package_type: manifest.package_type,
+            title: manifest.title,
+            description: manifest.description,
+            file_size: manifest.file_size,
+            archive_file: manifest.archive_file,
+            created_at: manifest.created_at,
+            package_path: pkg_dir,
+        };
+
+        packages.push(installed);
+    }
+
+    info!("[scan_library] Nalezeno {} balíčků", packages.len());
+    Ok(packages)
+}
+
+#[tauri::command]
+async fn open_folder(package_path: String) -> Result<(), String> {
+    let content_dir = Path::new(&package_path).join("content");
+    info!("[open_folder] Otevírám složku: {}", content_dir.display());
+
+    if !content_dir.exists() {
+        let msg = format!("Složka neexistuje: {}", content_dir.display());
+        error!("{}", msg);
+        return Err(msg);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&content_dir)
+            .spawn()
+            .map_err(|e| {
+                let msg = format!("Nepodařilo se otevřít Průzkumník: {}", e);
+                error!("{}", msg);
+                msg
+            })?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&content_dir)
+            .spawn()
+            .map_err(|e| {
+                let msg = format!("Nepodařilo se otevřít Finder: {}", e);
+                error!("{}", msg);
+                msg
+            })?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&content_dir)
+            .spawn()
+            .map_err(|e| {
+                let msg = format!("Nepodařilo se otevřít správce souborů: {}", e);
+                error!("{}", msg);
+                msg
+            })?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn uninstall_package(
+    download_path: String,
+    slug: String,
+) -> Result<(), String> {
+    info!("[uninstall_package] Odstraňuji balíček: {}", slug);
+
+    // Validace slug
+    if slug.trim().is_empty() || slug.contains('/') || slug.contains('\\') || slug.contains("..") {
+        return Err("Neplatný slug".to_string());
+    }
+    for c in slug.chars() {
+        if !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+            return Err("Neplatný slug: povoleny pouze A-Z, a-z, 0-9, '-', '_' a '.'".to_string());
+        }
+    }
+
+    // Canonicalize základní cesty
+    fs::create_dir_all(&download_path).map_err(|e| {
+        format!("Nepodařilo se vytvořit základní složku: {}", e)
+    })?;
+    let base_canon = fs::canonicalize(&download_path).map_err(|e| {
+        format!("Nepodařilo se canonicalizovat download_path: {}", e)
+    })?;
+
+    let package_dir = base_canon.join(&slug);
+
+    // Bezpečnostní kontrola – musí být pod download_path
+    if !package_dir.starts_with(&base_canon) {
+        let msg = format!(
+            "Bezpečnostní chyba: cílová složka '{}' není pod '{}'",
+            package_dir.display(),
+            base_canon.display()
+        );
+        error!("{}", msg);
+        return Err(msg);
+    }
+
+    if !package_dir.exists() {
+        let msg = format!("Složka balíčku neexistuje: {}", package_dir.display());
+        warn!("{}", msg);
+        return Err(msg);
+    }
+
+    fs::remove_dir_all(&package_dir).map_err(|e| {
+        let msg = format!(
+            "Nepodařilo se odstranit složku '{}': {}",
+            package_dir.display(),
+            e
+        );
+        error!("{}", msg);
+        msg
+    })?;
+
+    info!("[uninstall_package] Odstraněno: {}", package_dir.display());
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -327,7 +526,15 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, download_package, save_manifest, extract_package])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            download_package,
+            save_manifest,
+            extract_package,
+            scan_library,
+            open_folder,
+            uninstall_package,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

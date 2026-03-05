@@ -17,6 +17,7 @@ const detach = await attachConsole();
 const app = createApp(App);
 
 app.use(router)
+app.use(createPinia())
 app.use(PrimeVue, {
     theme: {
         preset: Aura,

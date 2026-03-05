@@ -1,78 +1,146 @@
 <script setup>
-const games = [
-  { id: 1, title: "Hra Alpha", playtime: "12 h" },
-  { id: 2, title: "Hra Beta", playtime: "5 h" },
-  { id: 3, title: "Hra Gamma", playtime: "34 h" },
-];
+import { onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { useToast } from 'primevue';
+import { useLibraryStore } from '@/stores/library.js';
+import { settings } from '@/stores/settings.js';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import ProgressSpinner from 'primevue/progressspinner';
+import Message from 'primevue/message';
+
+const libraryStore = useLibraryStore();
+const toast = useToast();
+
+const TYPE_LABELS = {
+  installer:     { label: 'Instalátor',   severity: 'info' },
+  ready_to_play: { label: 'Ready to Play', severity: 'success' },
+  patch:         { label: 'Patch / Fix',   severity: 'warn' },
+  other:         { label: 'Ostatní',       severity: 'secondary' },
+};
+const getTypeTag = (type) => TYPE_LABELS[type] ?? { label: type, severity: 'secondary' };
+
+const formatSize = (bytes) => {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const openFolder = async (pkg) => {
+  try {
+    await invoke('open_folder', { packagePath: pkg.package_path });
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Chyba', detail: e, group: 'tc', life: 5000 });
+  }
+};
+
+const uninstall = async (pkg) => {
+  try {
+    await invoke('uninstall_package', {
+      downloadPath: settings.value.downloadPath,
+      slug: pkg.slug,
+    });
+    libraryStore.removePackage(pkg.slug);
+    toast.add({
+      severity: 'success',
+      summary: 'Odinstalováno',
+      detail: `${pkg.title} byl odstraněn.`,
+      group: 'tc',
+      life: 4000,
+    });
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Chyba při odinstalaci', detail: e, group: 'tc', life: 5000 });
+  }
+};
+
+onMounted(() => {
+  libraryStore.syncWithDisk();
+});
 </script>
 
 <template>
-  <div class="view-container">
-    <h1>Knihovna</h1>
-    <div class="game-list">
-      <div class="game-row" v-for="game in games" :key="game.id">
-        <div class="game-icon" />
-        <div class="game-info">
-          <strong>{{ game.title }}</strong>
-          <span>Odehráno: {{ game.playtime }}</span>
-        </div>
-        <button class="play-btn">Hrát</button>
+  <div class="py-0 px-4">
+    <Message v-if="!settings.downloadPath" severity="warn" class="mb-4">
+      Pozor: V nastavení nemáte vybranou složku pro stahování her.
+    </Message>
+
+    <div class="flex justify-content-between align-items-center mb-4">
+      <h2 class="m-0">Nainstalované balíčky</h2>
+      <Button
+        label="Obnovit"
+        icon="pi pi-refresh"
+        severity="secondary"
+        :loading="libraryStore.loading"
+        @click="libraryStore.syncWithDisk()"
+      />
+    </div>
+
+    <Message v-if="libraryStore.error" severity="error" class="mb-4">
+      {{ libraryStore.error }}
+    </Message>
+
+    <div v-if="libraryStore.loading" class="flex justify-content-center mt-6">
+      <ProgressSpinner />
+    </div>
+
+    <div v-else-if="libraryStore.packageList.length === 0" class="text-center text-color-secondary mt-6">
+      <i class="pi pi-inbox text-5xl mb-3 block" />
+      <p>Žádné nainstalované balíčky.</p>
+    </div>
+
+    <div v-else class="grid">
+      <div
+        v-for="pkg in libraryStore.packageList"
+        :key="pkg.slug"
+        class="col-12 md:col-6 lg:col-4 xl:col-3"
+      >
+        <Card class="h-full">
+          <template #title>
+            <div class="flex align-items-center gap-2">
+              <span class="flex-1 text-base font-semibold">{{ pkg.title }}</span>
+              <Tag :value="getTypeTag(pkg.type).label" :severity="getTypeTag(pkg.type).severity" />
+            </div>
+          </template>
+
+          <template #subtitle>
+            <span class="text-xs text-color-secondary font-mono">{{ pkg.slug }}</span>
+          </template>
+
+          <template #content>
+            <p class="text-sm m-0 mb-2 line-clamp-3">{{ pkg.description }}</p>
+            <div class="flex gap-3 text-xs text-color-secondary">
+              <span><i class="pi pi-database mr-1" />{{ formatSize(pkg.file_size) }}</span>
+              <span v-if="pkg.created_at">
+                <i class="pi pi-calendar mr-1" />{{ new Date(pkg.created_at).toLocaleDateString('cs-CZ') }}
+              </span>
+            </div>
+          </template>
+
+          <template #footer>
+            <div class="flex gap-2">
+              <Button
+                label="Otevřít složku"
+                icon="pi pi-folder-open"
+                severity="secondary"
+                size="small"
+                class="flex-1"
+                @click="openFolder(pkg)"
+              />
+              <Button
+                label="Odstranit"
+                icon="pi pi-trash"
+                severity="danger"
+                size="small"
+                class="flex-1"
+                @click="uninstall(pkg)"
+              />
+            </div>
+          </template>
+        </Card>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.view-container {
-  padding: 2rem;
-}
-
-.game-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.game-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.game-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #f093fb, #f5576c);
-  flex-shrink: 0;
-}
-
-.game-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.game-info span {
-  font-size: 0.85rem;
-  color: #777;
-}
-
-.play-btn {
-  background: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.4rem 1.2rem;
-  cursor: pointer;
-}
-
-.play-btn:hover {
-  background: #43a047;
-}
-</style>

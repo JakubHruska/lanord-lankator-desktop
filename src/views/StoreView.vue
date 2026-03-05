@@ -3,6 +3,7 @@ import {ref, onMounted, onUnmounted} from "vue";
 import api from "@/api/axios.js";
 import {settings} from "@/stores/settings.js";
 import {downloadPackage, extractPackage, saveManifest} from "@/services/downloadService.js";
+import {useLibraryStore} from "@/stores/library.js";
 
 // ...existing code...
 
@@ -29,6 +30,14 @@ let refreshInterval = null;
 
 const toast = useToast();
 const downloadingItems = ref(new Set()); // Sledujeme, co se zrovna stahuje
+const libraryStore = useLibraryStore();
+
+// Tooltip helper: pokud není nastavená složka, ukaž tu; pokud je již nainstalováno, ukaž to místo standardního tooltipu
+const tooltipFor = (pkg) => {
+  if (!settings.value.downloadPath) return 'Nejprve nastavte složku pro stahování v nastavení';
+  if (libraryStore.isInstalled && libraryStore.isInstalled(pkg.slug)) return 'Balíček je již nainstalován';
+  return '';
+};
 
 // Počítání velikosti souboru
 const formatSize = (bytes) => {
@@ -73,6 +82,18 @@ onUnmounted(() => {
 });
 
 const handleDownload = async (pkg) => {
+  // Blokování opětovného stažení
+  if (libraryStore.isInstalled(pkg.slug)) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Již nainstalováno',
+      detail: `Balíček ${pkg.title} je již nainstalován.`,
+      group: 'tc',
+      life: 4000
+    });
+    return;
+  }
+
   downloadingItems.value.add(pkg.id);
 
   try {
@@ -96,6 +117,9 @@ const handleDownload = async (pkg) => {
     });
 
     const appDir = await extractPackage(pkg);
+
+    // Aktualizace library store po úspěšné instalaci
+    await libraryStore.syncWithDisk();
 
     toast.add({severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000});
   } catch (error) {
@@ -157,8 +181,8 @@ const handleDownload = async (pkg) => {
                   :label="downloadingItems.has(pkg.id) ? 'Stahuji...' : 'Stáhnout'"
                   :icon="downloadingItems.has(pkg.id) ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
                   class="flex-grow-1"
-                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id)"
-                  v-tooltip.top="!settings.downloadPath ? 'Nejprve nastavte složku pro stahování v nastavení' : ''"
+                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id) || (libraryStore.isInstalled && libraryStore.isInstalled(pkg.slug))"
+                  v-tooltip.top="tooltipFor(pkg)"
                   @click="handleDownload(pkg)"
               />
               <Button

@@ -2,7 +2,18 @@
 import {ref, onMounted, onUnmounted} from "vue";
 import api from "@/api/axios.js";
 import {settings} from "@/stores/settings.js";
-import {downloadPackage, extractPackage} from "@/services/downloadService.js";
+import {downloadPackage, extractPackage, saveManifest} from "@/services/downloadService.js";
+
+// ...existing code...
+
+const TYPE_LABELS = {
+  installer: { label: 'Instalátor', severity: 'info' },
+  ready_to_play: { label: 'Ready to Play', severity: 'success' },
+  patch: { label: 'Patch / Fix', severity: 'warn' },
+  other: { label: 'Ostatní', severity: 'secondary' },
+};
+
+const getTypeTag = (type) => TYPE_LABELS[type] ?? { label: type, severity: 'secondary' };
 
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -61,11 +72,6 @@ onUnmounted(() => {
   if (refreshInterval) clearInterval(refreshInterval);
 });
 
-const startDownload = (pkg) => {
-  console.log('Stahuji:', pkg.title);
-  window.open(pkg.archive_file, '_blank');
-};
-
 const handleDownload = async (pkg) => {
   downloadingItems.value.add(pkg.id);
 
@@ -79,6 +85,7 @@ const handleDownload = async (pkg) => {
     });
 
     await downloadPackage(pkg);
+    await saveManifest(pkg);
 
     toast.add({
       severity: 'info',
@@ -130,7 +137,7 @@ const handleDownload = async (pkg) => {
           <template #title>
             <div class="flex justify-content-between align-items-start">
               <span>{{ pkg.title }}</span>
-              <Tag :value="pkg.version" severity="secondary"/>
+              <Tag :value="getTypeTag(pkg.type).label" :severity="getTypeTag(pkg.type).severity"/>
             </div>
           </template>
 

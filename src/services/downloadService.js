@@ -12,6 +12,17 @@ export const downloadPackage = async (pkg) => {
     });
 };
 
+export const saveManifest = async (pkg) => {
+    const downloadPath = settings.value.downloadPath;
+    if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
+
+    await invoke('save_manifest', {
+        downloadPath: downloadPath,
+        slug: pkg.slug,
+        manifest: pkg.manifest_data,
+    });
+};
+
 export const extractPackage = async (pkg) => {
     const downloadPath = settings.value.downloadPath;
     if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
@@ -21,4 +32,3 @@ export const extractPackage = async (pkg) => {
         slug: pkg.slug,
     });
 };
-

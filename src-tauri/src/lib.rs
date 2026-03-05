@@ -1,5 +1,6 @@
-use log::{debug, error, info, warn};
+use log::{trace, debug, error, info, warn};
 use reqwest;
+use serde::Deserialize;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -79,6 +80,86 @@ async fn download_package(
     Ok(zip_path.to_string_lossy().to_string())
 }
 
+#[derive(Deserialize)]
+struct ManifestData {
+    slug: String,
+    #[serde(rename = "type")]
+    package_type: String,
+    title: String,
+    description: String,
+    file_size: u64,
+    archive_file: String,
+    created_at: Option<String>,
+}
+
+#[tauri::command]
+async fn save_manifest(
+    download_path: String,
+    slug: String,
+    manifest: serde_json::Value,
+) -> Result<(), String> {
+    // Log surového payloadu pro debug
+    match serde_json::to_string_pretty(&manifest) {
+        Ok(s) => debug!("[save_manifest] Přijatý manifest: {}", s),
+        Err(e) => warn!("[save_manifest] Nelze serializovat přijatý manifest pro log: {}", e),
+    }
+
+    // Pokus o konverzi na strongly-typed struct, s loggingem chyby
+    let manifest_data: ManifestData = serde_json::from_value(manifest).map_err(|e| {
+        let msg = format!("Nepodařilo se deserialize manifestu: {}", e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    let game_dir = Path::new(&download_path).join(&slug);
+    let manifest_path = game_dir.join("manifest.json");
+
+    info!(
+        "[save_manifest] Ukládám manifest pro '{}' do '{}'",
+        slug,
+        manifest_path.display()
+    );
+
+    let json = serde_json::json!({
+        "slug": manifest_data.slug,
+        "type": manifest_data.package_type,
+        "title": manifest_data.title,
+        "description": manifest_data.description,
+        "file_size": manifest_data.file_size,
+        "archive_file": manifest_data.archive_file,
+        "created_at": manifest_data.created_at,
+    });
+
+    let content = serde_json::to_string_pretty(&json).map_err(|e| {
+        let msg = format!("Nepodařilo se serializovat manifest: {}", e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    fs::create_dir_all(&game_dir).map_err(|e| {
+        let msg = format!(
+            "Nepodařilo se vytvořit složku '{}': {}",
+            game_dir.display(),
+            e
+        );
+        error!("{}", msg);
+        msg
+    })?;
+
+    fs::write(&manifest_path, content).map_err(|e| {
+        let msg = format!(
+            "Nepodařilo se zapsat manifest '{}': {}",
+            manifest_path.display(),
+            e
+        );
+        error!("{}", msg);
+        msg
+    })?;
+
+    info!("[save_manifest] Manifest uložen: {}", manifest_path.display());
+    Ok(())
+}
+
 #[tauri::command]
 async fn extract_package(
     download_path: String,
@@ -135,7 +216,7 @@ async fn extract_package(
         };
 
         if file.is_dir() {
-            debug!("[extract_package] Vytvářím složku: {}", out_path.display());
+            trace!("[extract_package] Vytvářím složku: {}", out_path.display());
             fs::create_dir_all(&out_path).map_err(|e| {
                 let msg = format!("Nepodařilo se vytvořit složku '{}': {}", out_path.display(), e);
                 error!("{}", msg);
@@ -150,7 +231,7 @@ async fn extract_package(
                     msg
                 })?;
             }
-            debug!("[extract_package] Rozbaluji soubor: {}", out_path.display());
+            trace!("[extract_package] Rozbaluji soubor: {}", out_path.display());
             let mut out_file = fs::File::create(&out_path).map_err(|e| {
                 let msg = format!("Nepodařilo se vytvořit soubor '{}': {}", out_path.display(), e);
                 error!("{}", msg);
@@ -188,7 +269,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(if cfg!(debug_assertions) {
-                    tauri_plugin_log::log::LevelFilter::Debug
+                    tauri_plugin_log::log::LevelFilter::Trace // MARK: TRACING
                 } else {
                     tauri_plugin_log::log::LevelFilter::Info // TODO: pro final release změnit
                 })
@@ -211,7 +292,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, download_package, extract_package])
+        .invoke_handler(tauri::generate_handler![greet, download_package, save_manifest, extract_package])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

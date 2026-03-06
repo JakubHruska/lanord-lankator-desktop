@@ -70,7 +70,7 @@ onMounted(() => {
     </Message>
 
     <div class="flex justify-content-between align-items-center mb-4">
-      <h1 class="m-0">Nainstalované balíčky</h1>
+      <h1 class="m-0">Stažené balíčky</h1>
       <Button
         label="Obnovit"
         icon="pi pi-refresh"
@@ -109,7 +109,7 @@ onMounted(() => {
               <div class="flex gap-1">
                 <Tag
                   v-if="!isReady(pkg)"
-                  value="Instalace..."
+                  value="Stahuji..."
                   severity="warn"
                   icon="pi pi-spin pi-spinner"
                 />
@@ -157,7 +157,7 @@ onMounted(() => {
               <!-- Instalující se balíček -->
               <template v-else>
                 <Button
-                  label="Instalace probíhá..."
+                  label="Stahuji..."
                   icon="pi pi-spin pi-spinner"
                   severity="secondary"
                   size="small"

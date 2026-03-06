@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "desktop_client",
+  "productName": "Lanord Manager",
   "version": "0.1.0",
-  "identifier": "eu.lanord_manager.desktop_client",
+  "identifier": "eu.lanord.manager",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,13 +12,15 @@
   "app": {
     "windows": [
       {
-        "title": "desktop_client",
-        "width": 800,
-        "height": 600
+        "title": "Lanord Manager",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' https://lanord.eu http://127.0.0.1:8000; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: https://asset.localhost"
     }
   },
   "bundle": {
@@ -30,6 +32,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser"
+      }
+    }
   }
 }

@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { settings } from '@/stores/settings';
 
 const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/', // TODO: načíst ze settings
+    baseURL: `${settings.value.serverUrl}/api/`,
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -9,12 +10,10 @@ const api = axios.create({
     timeout: 10000,
 });
 
-// Request interceptor
+// Interceptor: vždy použij aktuální serverUrl ze settings (i po změně v nastavení)
 api.interceptors.request.use(
     (config) => {
-        // Zde lze přidat token např.:
-        // const token = localStorage.getItem('token');
-        // if (token) config.headers.Authorization = `Bearer ${token}`;
+        config.baseURL = `${settings.value.serverUrl}/api/`;
         return config;
     },
     (error) => Promise.reject(error)

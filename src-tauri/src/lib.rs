@@ -91,6 +91,12 @@ struct ManifestData {
     file_size: u64,
     archive_file: String,
     created_at: Option<String>,
+    #[serde(default = "default_status")]
+    status: String,
+}
+
+fn default_status() -> String {
+    "installing".to_string()
 }
 
 #[tauri::command]
@@ -174,6 +180,7 @@ async fn save_manifest(
         "file_size": manifest_data.file_size,
         "archive_file": archive_basename,
         "created_at": manifest_data.created_at,
+        "status": "installing",
     });
 
     let content = serde_json::to_string_pretty(&json).map_err(|e| {
@@ -309,6 +316,8 @@ struct InstalledPackage {
     file_size: u64,
     archive_file: String,
     created_at: Option<String>,
+    #[serde(default = "default_status")]
+    status: String,
     /// Absolutní cesta ke složce balíčku ({download_path}/{slug})
     package_path: String,
 }
@@ -379,6 +388,7 @@ async fn scan_library(download_path: String) -> Result<Vec<InstalledPackage>, St
             file_size: manifest.file_size,
             archive_file: manifest.archive_file,
             created_at: manifest.created_at,
+            status: manifest.status,
             package_path: pkg_dir,
         };
 
@@ -387,6 +397,58 @@ async fn scan_library(download_path: String) -> Result<Vec<InstalledPackage>, St
 
     info!("[scan_library] Nalezeno {} balíčků", packages.len());
     Ok(packages)
+}
+
+#[tauri::command]
+async fn update_manifest_status(
+    package_path: String,
+    status: String,
+) -> Result<(), String> {
+    // Validace status hodnoty
+    if status != "installing" && status != "ready" {
+        return Err(format!("Neplatný status '{}': povoleno pouze 'installing' nebo 'ready'", status));
+    }
+
+    let manifest_path = Path::new(&package_path).join("manifest.json");
+
+    info!(
+        "[update_manifest_status] Aktualizuji status na '{}' v '{}'",
+        status,
+        manifest_path.display()
+    );
+
+    let content = fs::read_to_string(&manifest_path).map_err(|e| {
+        let msg = format!("Nelze přečíst manifest '{}': {}", manifest_path.display(), e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    let mut json: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
+        let msg = format!("Nelze parsovat manifest '{}': {}", manifest_path.display(), e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    json["status"] = serde_json::Value::String(status.clone());
+
+    let new_content = serde_json::to_string_pretty(&json).map_err(|e| {
+        let msg = format!("Nelze serializovat manifest: {}", e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    fs::write(&manifest_path, new_content).map_err(|e| {
+        let msg = format!("Nelze zapsat manifest '{}': {}", manifest_path.display(), e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    info!(
+        "[update_manifest_status] Status aktualizován na '{}': {}",
+        status,
+        manifest_path.display()
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -532,6 +594,7 @@ pub fn run() {
             save_manifest,
             extract_package,
             scan_library,
+            update_manifest_status,
             open_folder,
             uninstall_package,
         ])

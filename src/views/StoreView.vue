@@ -118,8 +118,10 @@ const handleDownload = async (pkg) => {
 
     const appDir = await extractPackage(pkg);
 
-    // Aktualizace library store po úspěšné instalaci
+    // Nejdřív sync (přidá balíček do mapy se statusem "installing")
     await libraryStore.syncWithDisk();
+    // Pak přepis na "ready" – v paměti i na disku
+    await libraryStore.setPackageReady(pkg.slug);
 
     toast.add({severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000});
   } catch (error) {

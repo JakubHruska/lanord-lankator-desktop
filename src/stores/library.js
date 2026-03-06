@@ -45,6 +45,23 @@ export const useLibraryStore = defineStore('library', () => {
         installedPackages.value.delete(slug);
     }
 
+    /**
+     * Přepne status balíčku na "ready" – v paměti i na disku.
+     * @param {string} slug
+     */
+    async function setPackageReady(slug) {
+        const pkg = installedPackages.value.get(slug);
+        if (!pkg) return;
+
+        await invoke('update_manifest_status', {
+            packagePath: pkg.package_path,
+            status: 'ready',
+        });
+
+        // Optimistická aktualizace v paměti
+        installedPackages.value.set(slug, { ...pkg, status: 'ready' });
+    }
+
     return {
         installedPackages,
         packageList,
@@ -53,5 +70,6 @@ export const useLibraryStore = defineStore('library', () => {
         isInstalled,
         syncWithDisk,
         removePackage,
+        setPackageReady,
     };
 });

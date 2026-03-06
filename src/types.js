@@ -27,6 +27,10 @@
  */
 
 /**
+ * @typedef {'installing' | 'ready'} PackageStatus
+ */
+
+/**
  * @typedef {Object} InstalledPackage
  * @property {string} slug
  * @property {PackageType} type
@@ -35,6 +39,7 @@
  * @property {number} file_size
  * @property {string} archive_file
  * @property {string|null} created_at
+ * @property {PackageStatus} status
  * @property {string} package_path  - absolutní cesta ke složce balíčku
  */
 

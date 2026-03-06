@@ -1,14 +1,21 @@
 <script setup>
-import {ref} from "vue";
+import {ref, onMounted} from "vue";
 import {useRouter, useRoute} from 'vue-router';
 import Tabs from "primevue/tabs";
 import TabList from "primevue/tablist";
 import Tab from "primevue/tab";
 import Toast from 'primevue/toast';
-
+import { useLibraryStore } from '@/stores/library.js';
 
 const router = useRouter();
 const route = useRoute();
+
+const libraryStore = useLibraryStore();
+
+onMounted(() => {
+  // Sync library on application start so library tab shows data even if user doesn't open it
+  libraryStore.syncWithDisk();
+});
 
 const onTabChange = (newPath) => {
   router.push(newPath);

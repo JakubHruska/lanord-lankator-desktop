@@ -21,6 +21,8 @@ const TYPE_LABELS = {
 };
 const getTypeTag = (type) => TYPE_LABELS[type] ?? { label: type, severity: 'secondary' };
 
+const isReady = (pkg) => pkg.status === 'ready';
+
 const formatSize = (bytes) => {
   if (!bytes) return '0 B';
   const k = 1024;
@@ -68,7 +70,7 @@ onMounted(() => {
     </Message>
 
     <div class="flex justify-content-between align-items-center mb-4">
-      <h2 class="m-0">Nainstalované balíčky</h2>
+      <h1 class="m-0">Nainstalované balíčky</h1>
       <Button
         label="Obnovit"
         icon="pi pi-refresh"
@@ -97,11 +99,22 @@ onMounted(() => {
         :key="pkg.slug"
         class="col-12 md:col-6 lg:col-4 xl:col-3"
       >
-        <Card class="h-full">
+        <Card
+          class="h-full"
+          :class="{ 'pkg-installing': !isReady(pkg) }"
+        >
           <template #title>
-            <div class="flex align-items-center gap-2">
-              <span class="flex-1 text-base font-semibold">{{ pkg.title }}</span>
-              <Tag :value="getTypeTag(pkg.type).label" :severity="getTypeTag(pkg.type).severity" />
+            <div class="flex justify-content-between gap-2 align-items-center">
+              <span>{{ pkg.title }}</span>
+              <div class="flex gap-1">
+                <Tag
+                  v-if="!isReady(pkg)"
+                  value="Instalace..."
+                  severity="warn"
+                  icon="pi pi-spin pi-spinner"
+                />
+                <Tag :value="getTypeTag(pkg.type).label" :severity="getTypeTag(pkg.type).severity" />
+              </div>
             </div>
           </template>
 
@@ -121,22 +134,37 @@ onMounted(() => {
 
           <template #footer>
             <div class="flex gap-2">
-              <Button
-                label="Otevřít složku"
-                icon="pi pi-folder-open"
-                severity="secondary"
-                size="small"
-                class="flex-1"
-                @click="openFolder(pkg)"
-              />
-              <Button
-                label="Odstranit"
-                icon="pi pi-trash"
-                severity="danger"
-                size="small"
-                class="flex-1"
-                @click="uninstall(pkg)"
-              />
+              <!-- Připravený balíček -->
+              <template v-if="isReady(pkg)">
+                <Button
+                  label="Otevřít složku"
+                  icon="pi pi-folder-open"
+                  severity="info"
+                  size="small"
+                  class="flex-1"
+                  @click="openFolder(pkg)"
+                />
+                <Button
+                  label="Odstranit"
+                  icon="pi pi-trash"
+                  severity="danger"
+                  size="small"
+                  class="flex-1"
+                  @click="uninstall(pkg)"
+                />
+              </template>
+
+              <!-- Instalující se balíček -->
+              <template v-else>
+                <Button
+                  label="Instalace probíhá..."
+                  icon="pi pi-spin pi-spinner"
+                  severity="secondary"
+                  size="small"
+                  class="flex-1"
+                  disabled
+                />
+              </template>
             </div>
           </template>
         </Card>
@@ -144,3 +172,11 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.pkg-installing {
+  filter: grayscale(100%) opacity(0.7);
+  pointer-events: none;
+}
+</style>
+

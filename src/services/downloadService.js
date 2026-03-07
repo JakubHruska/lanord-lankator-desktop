@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import { settings } from '@/stores/settings';
+import { useSettingsStore } from '@/stores/settings';
 
 export const downloadPackage = async (pkg) => {
-    const downloadPath = settings.value.downloadPath;
+    const { settings } = useSettingsStore();
+    const downloadPath = settings.downloadPath;
     if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
 
     await invoke('download_package', {
@@ -13,7 +14,8 @@ export const downloadPackage = async (pkg) => {
 };
 
 export const saveManifest = async (pkg) => {
-    const downloadPath = settings.value.downloadPath;
+    const { settings } = useSettingsStore();
+    const downloadPath = settings.downloadPath;
     if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
 
     await invoke('save_manifest', {
@@ -24,7 +26,8 @@ export const saveManifest = async (pkg) => {
 };
 
 export const extractPackage = async (pkg) => {
-    const downloadPath = settings.value.downloadPath;
+    const { settings } = useSettingsStore();
+    const downloadPath = settings.downloadPath;
     if (!downloadPath) throw new Error("Není nastavena cesta pro instalaci!");
 
     return await invoke('extract_package', {

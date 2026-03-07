@@ -1,21 +1,9 @@
 <script setup>
 import {ref, onMounted, onUnmounted} from "vue";
 import api from "@/api/axios.js";
-import {settings} from "@/stores/settings.js";
+import {useSettingsStore} from "@/stores/settings.js";
 import {downloadPackage, extractPackage, saveManifest} from "@/services/downloadService.js";
 import {useLibraryStore} from "@/stores/library.js";
-
-// ...existing code...
-
-const TYPE_LABELS = {
-  installer: { label: 'Instalátor', severity: 'info' },
-  ready_to_play: { label: 'Ready to Play', severity: 'success' },
-  patch: { label: 'Patch / Fix', severity: 'warn' },
-  other: { label: 'Ostatní', severity: 'secondary' },
-};
-
-const getTypeTag = (type) => TYPE_LABELS[type] ?? { label: type, severity: 'secondary' };
-
 import Card from 'primevue/card';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
@@ -23,23 +11,32 @@ import ProgressSpinner from 'primevue/progressspinner';
 import Message from "primevue/message";
 import {useToast} from "primevue";
 
+const settingsStore = useSettingsStore();
+const settings = settingsStore.settings;
+
+const TYPE_LABELS = {
+  installer:     { label: 'Instalátor',    severity: 'info' },
+  ready_to_play: { label: 'Ready to Play', severity: 'success' },
+  patch:         { label: 'Patch / Fix',   severity: 'warn' },
+  other:         { label: 'Ostatní',       severity: 'secondary' },
+};
+const getTypeTag = (type) => TYPE_LABELS[type] ?? { label: type, severity: 'secondary' };
+
 /** @type {import('vue').Ref<import('@/types').Package[]>} */
 const packages = ref([]);
 const loading = ref(true);
 let refreshInterval = null;
 
 const toast = useToast();
-const downloadingItems = ref(new Set()); // Sledujeme, co se zrovna stahuje
+const downloadingItems = ref(new Set());
 const libraryStore = useLibraryStore();
 
-// Tooltip helper: pokud není nastavená složka, ukaž tu; pokud je již nainstalováno, ukaž to místo standardního tooltipu
 const tooltipFor = (pkg) => {
-  if (!settings.value.downloadPath) return 'Nejprve nastavte složku pro stahování v nastavení';
-  if (libraryStore.isInstalled && libraryStore.isInstalled(pkg.slug)) return 'Balíček je již nainstalován';
-  return '';
+  if (!settings.downloadPath) return 'Nejprve nastavte složku pro stahování v nastavení';
+  if (libraryStore.isInstalled(pkg.slug)) return 'Balíček je již nainstalován';
+  return null;
 };
 
-// Počítání velikosti souboru
 const formatSize = (bytes) => {
   if (!bytes) return '0 B';
   const k = 1024;
@@ -49,11 +46,8 @@ const formatSize = (bytes) => {
 };
 
 const fetchPackages = async () => {
-  const loadingTimeout = setTimeout(() => {
-    loading.value = true;
-  }, 200);
+  const loadingTimeout = setTimeout(() => { loading.value = true; }, 200);
   try {
-    // V axios.js bys měl ideálně baseURL brát ze settings.value.serverUrl
     const response = await api.get('/packages/');
     packages.value = response.data;
   } catch (error) {
@@ -66,66 +60,33 @@ const fetchPackages = async () => {
 
 onMounted(() => {
   fetchPackages();
-
-  // Nastavení automatického refreshování každých 60 vteřin
   refreshInterval = setInterval(() => {
-    if (settings.value.autoRefresh) {
-      console.log('Automatické obnovování seznamu...');
-      fetchPackages();
-    }
+    if (settings.autoRefresh) fetchPackages();
   }, 60000);
 });
 
 onUnmounted(() => {
-  // Důležité: zastavit interval, když uživatel odejde z karty, ať se nevrství
   if (refreshInterval) clearInterval(refreshInterval);
 });
 
 const handleDownload = async (pkg) => {
-  // Blokování opětovného stažení
   if (libraryStore.isInstalled(pkg.slug)) {
-    toast.add({
-      severity: 'warn',
-      summary: 'Již nainstalováno',
-      detail: `Balíček ${pkg.title} je již nainstalován.`,
-      group: 'tc',
-      life: 4000
-    });
+    toast.add({ severity: 'warn', summary: 'Již nainstalováno', detail: `Balíček ${pkg.title} je již nainstalován.`, group: 'tc', life: 4000 });
     return;
   }
 
   downloadingItems.value.add(pkg.id);
-
   try {
-    toast.add({
-      severity: 'info',
-      summary: 'Stahování',
-      detail: `Stahuji ${pkg.title}...`,
-      group: 'tc',
-      life: 3000
-    });
-
+    toast.add({ severity: 'info', summary: 'Stahování', detail: `Stahuji ${pkg.title}...`, group: 'tc', life: 3000 });
     await downloadPackage(pkg);
     await saveManifest(pkg);
-
-    toast.add({
-      severity: 'info',
-      summary: 'Rozbalování',
-      detail: `Staženo, rozbaluji ${pkg.title}...`,
-      group: 'tc',
-      life: 3000
-    });
-
+    toast.add({ severity: 'info', summary: 'Rozbalování', detail: `Staženo, rozbaluji ${pkg.title}...`, group: 'tc', life: 3000 });
     const appDir = await extractPackage(pkg);
-
-    // Nejdřív sync (přidá balíček do mapy se statusem "installing")
     await libraryStore.syncWithDisk();
-    // Pak přepis na "ready" – v paměti i na disku
     await libraryStore.setPackageReady(pkg.slug);
-
-    toast.add({severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000});
+    toast.add({ severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000 });
   } catch (error) {
-    toast.add({severity: 'error', summary: 'Chyba', detail: error.message, group: 'tc', life: 5000});
+    toast.add({ severity: 'error', summary: 'Chyba', detail: error.message, group: 'tc', life: 5000 });
   } finally {
     downloadingItems.value.delete(pkg.id);
   }
@@ -142,8 +103,7 @@ const handleDownload = async (pkg) => {
       <h1 class="m-0">Dostupné balíčky</h1>
       <div class="flex items-center gap-2">
         <Tag :value="`${packages.length} dostupných`" severity="info"/>
-        <Button icon="pi pi-refresh" :loading="loading" @click="fetchPackages" label="Obnovit" outlined
-                severity="secondary"/>
+        <Button icon="pi pi-refresh" :loading="loading" @click="fetchPackages" label="Obnovit" outlined severity="secondary"/>
       </div>
     </div>
 
@@ -183,15 +143,11 @@ const handleDownload = async (pkg) => {
                   :label="downloadingItems.has(pkg.id) ? 'Stahuji...' : 'Stáhnout'"
                   :icon="downloadingItems.has(pkg.id) ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
                   class="flex-grow-1"
-                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id) || (libraryStore.isInstalled && libraryStore.isInstalled(pkg.slug))"
-                  v-tooltip.top="tooltipFor(pkg)"
+                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id) || libraryStore.isInstalled(pkg.slug)"
+                  :title="tooltipFor(pkg) ?? undefined"
                   @click="handleDownload(pkg)"
               />
-              <Button
-                  icon="pi pi-info-circle"
-                  outlined
-                  severity="secondary"
-              />
+              <Button icon="pi pi-info-circle" outlined severity="secondary"/>
             </div>
           </template>
         </Card>
@@ -206,6 +162,5 @@ const handleDownload = async (pkg) => {
 </template>
 
 <style scoped>
-/* PrimeFlex řeší většinu věcí, ale drobné úpravy můžeme nechat zde */
 
 </style>

@@ -1,16 +1,37 @@
+import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { load } from '@tauri-apps/plugin-store';
 
-const store = await load('settings.json', { autoSave: true });
+export const useSettingsStore = defineStore('settings', () => {
+    const settings = ref({
+        downloadPath: '',
+        serverUrl: 'http://127.0.0.1:8000',
+        autoRefresh: true,
+    });
 
-export const settings = ref({
-    downloadPath: await store.get('downloadPath') ?? '',
-    serverUrl: await store.get('serverUrl') ?? 'http://127.0.0.1:8000',
-    autoRefresh: await store.get('autoRefresh') ?? true
+    const initialized = ref(false);
+    let _store = null;
+
+    async function init() {
+        if (initialized.value) return;
+        _store = await load('settings.json', { autoSave: true });
+        settings.value = {
+            downloadPath: await _store.get('downloadPath') ?? '',
+            serverUrl:    await _store.get('serverUrl')    ?? 'http://127.0.0.1:8000',
+            autoRefresh:  await _store.get('autoRefresh')  ?? true,
+        };
+        initialized.value = true;
+
+        watch(settings, async (newVal) => {
+            if (!_store) return;
+            await _store.set('downloadPath', newVal.downloadPath);
+            await _store.set('serverUrl',    newVal.serverUrl);
+            await _store.set('autoRefresh',  newVal.autoRefresh);
+        }, { deep: true });
+    }
+
+    return { settings, initialized, init };
 });
 
-watch(settings, async (newVal) => {
-    await store.set('downloadPath', newVal.downloadPath);
-    await store.set('serverUrl', newVal.serverUrl);
-    await store.set('autoRefresh', newVal.autoRefresh);
-}, { deep: true });
+// Zpětná kompatibilita – exportuje reaktivní ref přímo
+// (komponenty které importují { settings } budou fungovat přes store.settings)

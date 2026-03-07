@@ -1,9 +1,12 @@
 <script setup>
-import { settings } from "@/stores/settings.js";
+import { useSettingsStore } from "@/stores/settings.js";
 import { open } from '@tauri-apps/plugin-dialog';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Message from 'primevue/message';
+
+const settingsStore = useSettingsStore();
+const settings = settingsStore.settings;
 
 const selectDirectory = async () => {
   const selected = await open({
@@ -13,7 +16,7 @@ const selectDirectory = async () => {
   });
 
   if (selected) {
-    settings.value.downloadPath = selected;
+    settings.downloadPath = selected;
   }
 };
 </script>

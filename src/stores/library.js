@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { settings } from '@/stores/settings';
+import { useSettingsStore } from '@/stores/settings';
 
 export const useLibraryStore = defineStore('library', () => {
-    /** @type {import('vue').Ref<Map<string, import('@/types').InstalledPackage>>} */
+    /** @type {import('vue').Ref<Map<string, any>>} */
     const installedPackages = ref(new Map());
     const loading = ref(false);
     const error = ref(null);
@@ -17,7 +17,8 @@ export const useLibraryStore = defineStore('library', () => {
 
     /** Synchronizuje stav s diskem přes Rust scan_library */
     async function syncWithDisk() {
-        const downloadPath = settings.value.downloadPath;
+        const settingsStore = useSettingsStore();
+        const downloadPath = settingsStore.settings.downloadPath;
         if (!downloadPath) {
             error.value = 'Není nastavena cesta pro instalaci.';
             return;

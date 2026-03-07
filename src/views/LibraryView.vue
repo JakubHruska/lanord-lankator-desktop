@@ -3,7 +3,7 @@ import { onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from 'primevue';
 import { useLibraryStore } from '@/stores/library.js';
-import { settings } from '@/stores/settings.js';
+import { useSettingsStore } from '@/stores/settings.js';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
@@ -12,6 +12,8 @@ import Message from 'primevue/message';
 
 const libraryStore = useLibraryStore();
 const toast = useToast();
+const settingsStore = useSettingsStore();
+const settings = settingsStore.settings;
 
 const TYPE_LABELS = {
   installer:     { label: 'Instalátor',   severity: 'info' },
@@ -42,7 +44,7 @@ const openFolder = async (pkg) => {
 const uninstall = async (pkg) => {
   try {
     await invoke('uninstall_package', {
-      downloadPath: settings.value.downloadPath,
+      downloadPath: settings.downloadPath,
       slug: pkg.slug,
     });
     libraryStore.removePackage(pkg.slug);

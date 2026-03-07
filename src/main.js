@@ -6,28 +6,40 @@ import App from './App.vue';
 import router from "./router";
 import Tooltip from 'primevue/tooltip';
 import ToastService from 'primevue/toastservice';
+import { useSettingsStore } from '@/stores/settings';
 
 import 'primeicons/primeicons.css';
 import 'primeflex/primeflex.css';
 
-import { attachConsole } from '@tauri-apps/plugin-log';
-const detach = await attachConsole();
-// TODO: call detach() if you do not want to print logs to the console anymore
+async function bootstrap() {
+    // Pouze v dev módu – připojení konzole k Tauri loggeru
+    if (import.meta.env.DEV) {
+        const { attachConsole } = await import('@tauri-apps/plugin-log');
+        await attachConsole();
+    }
 
-const app = createApp(App);
+    const app = createApp(App);
+    const pinia = createPinia();
 
-app.use(router)
-app.use(createPinia())
-app.use(PrimeVue, {
-    theme: {
-        preset: Aura,
-        options: {
-            darkModeSelector: 'light', // TODO: nastavit na system, umožnit přepínání
-        }
-    },
-    ripple: false
-});
-app.directive('tooltip', Tooltip);
-app.use(ToastService);
+    app.use(pinia);
+    app.use(router);
+    app.use(PrimeVue, {
+        theme: {
+            preset: Aura,
+            options: {
+                darkModeSelector: 'light',
+            }
+        },
+        ripple: false
+    });
+    app.directive('tooltip', Tooltip);
+    app.use(ToastService);
 
-app.mount('#app');
+    // Načti settings před prvním renderem
+    const settingsStore = useSettingsStore();
+    await settingsStore.init();
+
+    app.mount('#app');
+}
+
+bootstrap();

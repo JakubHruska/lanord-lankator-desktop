@@ -48,10 +48,34 @@ const formatSize = (bytes) => {
 const fetchPackages = async () => {
   const loadingTimeout = setTimeout(() => { loading.value = true; }, 200);
   try {
+    const serverUrl = settings.serverUrl ?? '(není nastaveno)';
+    const fullUrl = `${serverUrl}/api/packages/`;
+    console.group('[StoreView] fetchPackages()');
+    console.log('serverUrl ze settings:', serverUrl);
+    console.log('Plná URL požadavku:', fullUrl);
+    console.log('Odesílám GET /packages/ ...');
     const response = await api.get('/packages/');
+    console.log('Status odpovědi:', response.status, response.statusText);
+    console.log('Hlavičky odpovědi:', response.headers);
+    console.log('Surová data (response.data):', response.data);
+    console.log('Počet balíčků:', Array.isArray(response.data) ? response.data.length : 'není pole!');
+    console.groupEnd();
     packages.value = response.data;
   } catch (error) {
-    console.error('Chyba při načítání:', error);
+    console.group('[StoreView] fetchPackages() — CHYBA');
+    console.error('Typ chyby:', error?.name);
+    console.error('Zpráva:', error?.message);
+    console.error('Kód:', error?.code);
+    if (error?.config) {
+      console.error('Požadovaná URL (z axios config):', error.config.baseURL, error.config.url);
+    }
+    if (error?.response) {
+      console.error('HTTP status:', error.response.status);
+      console.error('Data chybové odpovědi:', error.response.data);
+    } else {
+      console.error('Žádná odpověď ze serveru (síťová chyba nebo CORS)');
+    }
+    console.groupEnd();
   } finally {
     clearTimeout(loadingTimeout);
     loading.value = false;

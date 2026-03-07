@@ -1,5 +1,12 @@
 import axios from 'axios';
 import { useSettingsStore } from '@/stores/settings';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+
+// V produkčním Tauri buildu je window.__TAURI__ dostupné — použijeme Tauri fetch
+// aby požadavky nešly přes Webview (který interceptuje URL jako asset)
+const customFetch = (typeof window !== 'undefined' && window.__TAURI__)
+  ? tauriFetch
+  : window.fetch.bind(window);
 
 const api = axios.create({
     baseURL: 'http://127.0.0.1:8000/api/',
@@ -8,6 +15,8 @@ const api = axios.create({
         'Accept': 'application/json',
     },
     timeout: 10000,
+    adapter: 'fetch',
+    fetch: customFetch,
 });
 
 // Interceptor: vždy použij aktuální serverUrl ze settings (i po změně v nastavení)

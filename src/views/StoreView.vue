@@ -49,14 +49,26 @@ const fetchPackages = async () => {
   const loadingTimeout = setTimeout(() => { loading.value = true; }, 200);
   try {
     const serverUrl = settings.serverUrl ?? '(není nastaveno)';
-    const fullUrl = `${serverUrl}/api/packages/`;
+    const fullUrl = `${serverUrl}/api/packages/`.replace(/([^:]\/)\/+/g, '$1');
     console.group('[StoreView] fetchPackages()');
     console.log('serverUrl ze settings:', serverUrl);
     console.log('Plná URL požadavku:', fullUrl);
-    console.log('Odesílám GET /packages/ ...');
+
+    // Raw fetch kontrola — co skutečně vrátí server
+    try {
+      const rawRes = await fetch(fullUrl);
+      const rawText = await rawRes.text();
+      console.log('RAW fetch status:', rawRes.status);
+      console.log('RAW fetch body (text):', rawText);
+    } catch (rawErr) {
+      console.warn('RAW fetch selhal:', rawErr.message);
+    }
+
+    console.log('Odesílám GET /packages/ přes axios...');
     const response = await api.get('/packages/');
+    console.log('Axios baseURL (z config):', response.config?.baseURL);
+    console.log('Axios finální URL:', (response.config?.baseURL ?? '') + (response.config?.url ?? ''));
     console.log('Status odpovědi:', response.status, response.statusText);
-    console.log('Hlavičky odpovědi:', response.headers);
     console.log('Surová data (response.data):', response.data);
     console.log('Počet balíčků:', Array.isArray(response.data) ? response.data.length : 'není pole!');
     console.groupEnd();

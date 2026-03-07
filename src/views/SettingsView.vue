@@ -39,6 +39,7 @@ const selectDirectory = async () => {
       <Message v-if="!settings.downloadPath" severity="error" :closable="false">
         Bez vybraného adresáře nebude možné stahovat balíčky!
       </Message>
+<!--      TODO: TLAČÍTKO I KDYŽ NIC NEDĚLÁ-->
     </div>
   </div>
 </template>

@@ -1,9 +1,11 @@
+use futures_util::StreamExt;
 use log::{trace, debug, error, info, warn};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::Path;
+use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -52,32 +54,57 @@ async fn download_package(
         return Err(msg);
     }
 
-    let bytes = response.bytes().await.map_err(|e| {
-        let msg = format!("Chyba při čtení dat: {}", e);
+    let content_length = response.content_length();
+    info!(
+        "[download_package] Velikost souboru: {}",
+        content_length.map_or("neznámá".to_string(), |b| format!("{:.2} MB", b as f64 / 1_048_576.0))
+    );
+
+    // 3. Streamování přímo na disk po chunkách — bez načítání do RAM
+    let zip_path = game_dir.join("temp.zip");
+    let mut file = tokio::fs::File::create(&zip_path).await.map_err(|e| {
+        let msg = format!("Nepodařilo se vytvořit soubor '{}': {}", zip_path.display(), e);
         error!("{}", msg);
         msg
     })?;
 
-    if bytes.is_empty() {
+    let mut downloaded: u64 = 0;
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| {
+            let msg = format!("Chyba při čtení chunku: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
+        file.write_all(&chunk).await.map_err(|e| {
+            let msg = format!("Chyba při zápisu na disk: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
+        downloaded += chunk.len() as u64;
+        if let Some(total) = content_length {
+            trace!(
+                "[download_package] Průběh: {:.1} / {:.1} MB ({:.0}%)",
+                downloaded as f64 / 1_048_576.0,
+                total as f64 / 1_048_576.0,
+                downloaded as f64 / total as f64 * 100.0
+            );
+        }
+    }
+
+    file.flush().await.map_err(|e| {
+        let msg = format!("Chyba při flush souboru: {}", e);
+        error!("{}", msg);
+        msg
+    })?;
+
+    if downloaded == 0 {
         warn!("[download_package] Server vrátil prázdný soubor");
         return Err("Server vrátil prázdný soubor".to_string());
     }
 
-    info!("[download_package] Staženo {} bajtů", bytes.len());
-
-    // 3. Uložení ZIPu na disk
-    let zip_path = game_dir.join("temp.zip");
-    fs::write(&zip_path, &bytes).map_err(|e| {
-        let msg = format!(
-            "Nepodařilo se zapsat soubor '{}': {}",
-            zip_path.display(),
-            e
-        );
-        error!("{}", msg);
-        msg
-    })?;
-
-    info!("[download_package] Uloženo do: {}", zip_path.display());
+    info!("[download_package] Staženo {:.2} MB -> {}", downloaded as f64 / 1_048_576.0, zip_path.display());
     Ok(zip_path.to_string_lossy().to_string())
 }
 
@@ -565,9 +592,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(if cfg!(debug_assertions) {
-                    tauri_plugin_log::log::LevelFilter::Trace // MARK: TRACING
+                    tauri_plugin_log::log::LevelFilter::Debug // MARK: TRACING
                 } else {
-                    tauri_plugin_log::log::LevelFilter::Trace // TODO: pro final release změnit
+                    tauri_plugin_log::log::LevelFilter::Info // TODO: pro final release změnit
                 })
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),

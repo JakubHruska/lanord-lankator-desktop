@@ -28,12 +28,12 @@ const loading = ref(true);
 let refreshInterval = null;
 
 const toast = useToast();
-const downloadingItems = ref(new Set());
 const libraryStore = useLibraryStore();
 
 const tooltipFor = (pkg) => {
   if (!settings.downloadPath) return 'Nejprve nastavte složku pro stahování v nastavení';
   if (libraryStore.isInstalled(pkg.slug)) return 'Balíček je již nainstalován';
+  if (libraryStore.isDownloading(pkg.slug)) return 'Balíček se stahuje...';
   return null;
 };
 
@@ -106,12 +106,9 @@ onUnmounted(() => {
 });
 
 const handleDownload = async (pkg) => {
-  if (libraryStore.isInstalled(pkg.slug)) {
-    toast.add({ severity: 'warn', summary: 'Již nainstalováno', detail: `Balíček ${pkg.title} je již nainstalován.`, group: 'tc', life: 4000 });
-    return;
-  }
+  if (libraryStore.isInstalled(pkg.slug) || libraryStore.isDownloading(pkg.slug)) return;
 
-  downloadingItems.value.add(pkg.id);
+  libraryStore.startDownload(pkg); // → kolečko + šedá kartička v knihovně ihned
   try {
     toast.add({ severity: 'info', summary: 'Stahování', detail: `Stahuji ${pkg.title}...`, group: 'tc', life: 3000 });
     await downloadPackage(pkg);
@@ -120,11 +117,11 @@ const handleDownload = async (pkg) => {
     const appDir = await extractPackage(pkg);
     await libraryStore.syncWithDisk();
     await libraryStore.setPackageReady(pkg.slug);
+    libraryStore.finishDownload(pkg.slug);
     toast.add({ severity: 'success', summary: 'Hotovo', detail: `Balíček stažen do: ${appDir}`, group: 'tc', life: 5000 });
   } catch (error) {
+    libraryStore.cancelDownload(pkg.slug); // odstraní optimistický záznam + odblokuje tlačítko
     toast.add({ severity: 'error', summary: 'Chyba', detail: error.message, group: 'tc', life: 5000 });
-  } finally {
-    downloadingItems.value.delete(pkg.id);
   }
 };
 </script>
@@ -176,10 +173,10 @@ const handleDownload = async (pkg) => {
           <template #footer>
             <div class="flex gap-2 mt-1">
               <Button
-                  :label="downloadingItems.has(pkg.id) ? 'Stahuji...' : 'Stáhnout'"
-                  :icon="downloadingItems.has(pkg.id) ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
+                  :label="libraryStore.isDownloading(pkg.slug) ? 'Stahuji...' : 'Stáhnout'"
+                  :icon="libraryStore.isDownloading(pkg.slug) ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
                   class="flex-grow-1"
-                  :disabled="!settings.downloadPath || downloadingItems.has(pkg.id) || libraryStore.isInstalled(pkg.slug)"
+                  :disabled="!settings.downloadPath || libraryStore.isDownloading(pkg.slug) || libraryStore.isInstalled(pkg.slug)"
                   :title="tooltipFor(pkg) ?? undefined"
                   @click="handleDownload(pkg)"
               />

@@ -940,6 +940,7 @@ dependencies = [
 name = "desktop_client"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "log",
  "reqwest 0.13.2",
  "serde",

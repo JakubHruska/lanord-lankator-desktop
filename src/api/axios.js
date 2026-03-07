@@ -13,8 +13,8 @@ const api = axios.create({
 // Interceptor: vždy použij aktuální serverUrl ze settings (i po změně v nastavení)
 api.interceptors.request.use(
     (config) => {
-        const { settings } = useSettingsStore();
-        config.baseURL = `${settings.serverUrl}/api/`;
+        const store = useSettingsStore();
+        config.baseURL = `${store.settings.serverUrl}/api/`;
         return config;
     },
     (error) => Promise.reject(error)

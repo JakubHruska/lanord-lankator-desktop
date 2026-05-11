@@ -592,9 +592,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(if cfg!(debug_assertions) {
-                    tauri_plugin_log::log::LevelFilter::Debug // MARK: TRACING
+                    tauri_plugin_log::log::LevelFilter::Trace // MARK: TRACING
                 } else {
-                    tauri_plugin_log::log::LevelFilter::Info // TODO: pro final release změnit
+                    tauri_plugin_log::log::LevelFilter::Trace // TODO: pro final release změnit
                 })
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),

@@ -30,7 +30,19 @@ export const useSettingsStore = defineStore('settings', () => {
         }, { deep: true });
     }
 
-    return { settings, initialized, init };
+    async function save() {
+        if (!_store) return;
+
+        await _store.set('downloadPath', settings.value.downloadPath);
+        await _store.set('serverUrl', settings.value.serverUrl);
+        await _store.set('autoRefresh', settings.value.autoRefresh);
+
+        if (typeof _store.save === 'function') {
+            await _store.save();
+        }
+    }
+
+    return { settings, initialized, init, save };
 });
 
 // Zpětná kompatibilita – exportuje reaktivní ref přímo

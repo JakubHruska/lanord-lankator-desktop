@@ -66,7 +66,13 @@ const items = ref([
 html, body {
   margin: 0;
   padding: 0;
-  //overflow-y: auto;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /*overflow-y: auto;*/
   scrollbar-gutter: stable; /* reservuje místo pro scrollbar vždy, aby layout neskákal */
+}
+
+#app,
+.p-component {
+  font-family: inherit;
 }
 </style>

@@ -1,12 +1,14 @@
 <script setup>
 import { useSettingsStore } from "@/stores/settings.js";
 import { open } from '@tauri-apps/plugin-dialog';
+import { useToast } from 'primevue';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Message from 'primevue/message';
 
 const settingsStore = useSettingsStore();
 const settings = settingsStore.settings;
+const toast = useToast();
 
 const selectDirectory = async () => {
   const selected = await open({
@@ -17,6 +19,27 @@ const selectDirectory = async () => {
 
   if (selected) {
     settings.downloadPath = selected;
+  }
+};
+
+const saveSettings = async () => {
+  try {
+    await settingsStore.save();
+    toast.add({
+      severity: 'success',
+      summary: 'Uloženo',
+      detail: 'Nastavení bylo úspěšně uloženo.',
+      group: 'tc',
+      life: 3000,
+    });
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Chyba',
+      detail: error?.message ?? 'Nepodařilo se uložit nastavení.',
+      group: 'tc',
+      life: 5000,
+    });
   }
 };
 </script>
@@ -39,7 +62,10 @@ const selectDirectory = async () => {
       <Message v-if="!settings.downloadPath" severity="error" :closable="false">
         Bez vybraného adresáře nebude možné stahovat balíčky!
       </Message>
-<!--      TODO: TLAČÍTKO I KDYŽ NIC NEDĚLÁ-->
+    </div>
+
+    <div class="flex justify-content-end pt-2">
+      <Button label="Uložit" icon="pi pi-check" @click="saveSettings" />
     </div>
   </div>
 </template>
